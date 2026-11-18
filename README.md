@@ -1,2 +1,0 @@
-# Shift-Accounting
-Shift Accounting
