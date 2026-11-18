@@ -155,7 +155,7 @@
             </div>
 
             <!-- Clean Day-by-Day List -->
-            <div id="days-list" class="space-y-1.5">
+            <div id="schedule-list" class="space-y-1.5">
                 <!-- Injected by JS -->
             </div>
         </section>
@@ -201,11 +201,6 @@
 
     </main>
 
-    <!-- BOTTOM SHEET 1: ВЫБОР СОТРУДНИКА НА ДЕНЬ -->
-    <div id="day-modal" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-end justify-center" onclick="closeModalBackdrop(event, 'day-modal')">
-        <div class="bg-[var(--bg-card)] w-full max-w-md rounded-t-3xl p-5 space-y-4 animate-sheet border-t border-[var(--border-subtle)] max-h-[90vh] overflow-y-auto">
-            <div class="flex items-center justify-between">
-                <div>
     <!-- BOTTOM SHEET 1: ВЫБОР СОТРУДНИКОВ НА ДЕНЬ (ДО 2 ЧЕЛОВЕК) -->
     <div id="day-modal" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-end justify-center" onclick="closeModalBackdrop(event, 'day-modal')">
         <div class="bg-[var(--bg-card)] w-full max-w-md rounded-t-3xl p-5 space-y-4 animate-sheet border-t border-[var(--border-subtle)] max-h-[90vh] overflow-y-auto">
@@ -429,8 +424,8 @@
         }
 
         // Backward-compatible normalizer: supports legacy single-worker objects, arrays, and { workers, note }
-        function normalizeDayEntry(rawEntry) {
-            if (!rawEntry) return null;
+        function normalizeShift(rawEntry) {
+            if (!rawEntry) return { workers: [], note: '' };
 
             let workers = [];
             let note = '';
@@ -463,7 +458,6 @@
                 if (cleanedWorkers.length >= 2) break;
             }
 
-            if (cleanedWorkers.length === 0 && !note) return null;
             return { workers: cleanedWorkers, note };
         }
 
@@ -471,8 +465,8 @@
             const normalized = {};
             if (!rawShifts || typeof rawShifts !== 'object') return normalized;
             for (const [iso, val] of Object.entries(rawShifts)) {
-                const norm = normalizeDayEntry(val);
-                if (norm && norm.workers.length > 0) {
+                const norm = normalizeShift(val);
+                if (norm.workers.length > 0) {
                     normalized[iso] = norm;
                 }
             }
@@ -745,7 +739,7 @@
             }).join('');
 
             const daysInMonth = new Date(y, m + 1, 0).getDate();
-            const listEl = document.getElementById('days-list');
+            const listEl = document.getElementById('schedule-list');
             let html = '';
 
             for (let d = 1; d <= daysInMonth; d++) {
@@ -754,8 +748,8 @@
                 const weekdayShort = dt.toLocaleDateString('ru-RU', { weekday: 'short' });
                 const isWeekend = dt.getDay() === 0 || dt.getDay() === 6;
                 const isToday = iso === TODAY_ISO;
-                const dayData = normalizeDayEntry(state.shifts[iso]);
-                const validWorkers = (dayData?.workers || [])
+                const dayData = normalizeShift(state.shifts[iso]);
+                const validWorkers = dayData.workers
                     .map(w => ({ ...w, person: getStaffById(w.empId) }))
                     .filter(w => w.person !== null);
 
@@ -793,13 +787,15 @@
                 }
 
                 html += `
-                    <button onclick="openDayEditor('${iso}')" class="w-full card px-3.5 py-2.5 flex items-center justify-between gap-2 text-left btn-tap ${isToday ? 'ring-2 ring-[#cb11ab]' : ''}">
-                        <div class="flex items-center gap-2 shrink-0">
+                    <button type="button" data-date="${iso}" class="w-full card px-3.5 py-2.5 flex items-center justify-between gap-2 text-left btn-tap ${isToday ? 'ring-2 ring-[#cb11ab]' : ''}">
+                        <div class="flex items-center gap-2 shrink-0 pointer-events-none">
                             <span class="w-5 text-sm font-extrabold ${isToday ? 'text-[#cb11ab]' : ''}">${d}</span>
                             <span class="text-xs font-medium uppercase ${isWeekend ? 'text-rose-500' : 'text-[var(--text-hint)]'}">${weekdayShort}</span>
                             ${isToday ? '<span class="px-1.5 py-0.5 rounded bg-[#cb11ab]/10 text-[#cb11ab] text-[10px] font-bold">Сегодня</span>' : ''}
                         </div>
-                        ${rightSide}
+                        <div class="pointer-events-none min-w-0">
+                            ${rightSide}
+                        </div>
                     </button>
                 `;
             }
@@ -813,24 +809,32 @@
         let editingISO = TODAY_ISO;
         let draftWorkers = [];
 
-        window.openDayEditor = function(iso) {
+        window.openShiftModal = function(iso) {
+            if (!iso) return;
             haptic('light');
             editingISO = iso;
-            const existing = normalizeDayEntry(state.shifts[iso]);
+            const existing = normalizeShift(state.shifts[iso]);
 
-            draftWorkers = existing
-                ? existing.workers
-                    .filter(w => state.staff.some(s => s.id === w.empId))
-                    .map(w => ({ empId: w.empId, val: w.val === 0.5 ? 0.5 : 1 }))
-                : [];
+            draftWorkers = existing.workers
+                .filter(w => state.staff.some(s => s.id === w.empId))
+                .map(w => ({ empId: w.empId, val: w.val === 0.5 ? 0.5 : 1 }));
 
             document.getElementById('modal-day-title').textContent = formatHumanDay(iso);
-            document.getElementById('modal-note-input').value = existing?.note || '';
-            document.getElementById('modal-clear-btn').classList.toggle('hidden', !existing || draftWorkers.length === 0);
+            document.getElementById('modal-note-input').value = existing.note || '';
+            document.getElementById('modal-clear-btn').classList.toggle('hidden', draftWorkers.length === 0 && !existing.note);
 
             renderDayModalUI();
             document.getElementById('day-modal').classList.remove('hidden');
         };
+
+        // Delegated click listener on #schedule-list so tapping anywhere on a date row opens the modal
+        document.getElementById('schedule-list').addEventListener('click', (e) => {
+            const row = e.target.closest('[data-date]');
+            if (row) {
+                const dateStr = row.getAttribute('data-date');
+                window.openShiftModal(dateStr);
+            }
+        });
 
         function renderDayModalUI() {
             const counterEl = document.getElementById('modal-slot-counter');
@@ -1033,8 +1037,8 @@
             const sortedDates = Object.keys(state.shifts).sort();
             for (const iso of sortedDates) {
                 if (iso >= startISO && iso <= endISO) {
-                    const dayData = normalizeDayEntry(state.shifts[iso]);
-                    if (!dayData || dayData.workers.length === 0) continue;
+                    const dayData = normalizeShift(state.shifts[iso]);
+                    if (dayData.workers.length === 0) continue;
 
                     for (const worker of dayData.workers) {
                         const row = stats.find(s => s.person.id === worker.empId);
