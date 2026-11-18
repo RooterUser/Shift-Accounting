@@ -206,42 +206,42 @@
         <div class="bg-[var(--bg-card)] w-full max-w-md rounded-t-3xl p-5 space-y-4 animate-sheet border-t border-[var(--border-subtle)] max-h-[90vh] overflow-y-auto">
             <div class="flex items-center justify-between">
                 <div>
-                    <h3 id="modal-day-title" class="text-base font-bold capitalize">18 ноября, среда</h3>
-                    <p class="text-xs text-[var(--text-hint)]">Кто работал в этот день?</p>
+    <!-- BOTTOM SHEET 1: ВЫБОР СОТРУДНИКОВ НА ДЕНЬ (ДО 2 ЧЕЛОВЕК) -->
+    <div id="day-modal" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-end justify-center" onclick="closeModalBackdrop(event, 'day-modal')">
+        <div class="bg-[var(--bg-card)] w-full max-w-md rounded-t-3xl p-5 space-y-4 animate-sheet border-t border-[var(--border-subtle)] max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h3 id="modal-day-title" class="text-base font-bold capitalize">18 ноября, среда</h3>
+                        <span id="modal-slot-counter" class="px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-[11px] font-bold text-[var(--text-hint)]">0 / 2</span>
+                    </div>
+                    <p class="text-xs text-[var(--text-hint)]">Выберите до 2 сотрудников на эту смену</p>
                 </div>
                 <button onclick="closeModal('day-modal')" class="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
                 </button>
             </div>
 
-            <!-- 1-Tap Employee Buttons -->
+            <!-- 1-Tap Employee Multi-Select Grid (up to 2) -->
             <div id="modal-staff-grid" class="grid grid-cols-2 gap-2">
                 <!-- Injected by JS -->
             </div>
 
-            <!-- Shift Type (Full 1.0 vs Half 0.5) -->
-            <div class="space-y-1.5">
-                <label class="block text-xs font-semibold text-[var(--text-hint)]">Тип выхода</label>
-                <div class="grid grid-cols-2 gap-2">
-                    <button type="button" onclick="selectShiftWeight(1)" id="weight-btn-1" class="py-2.5 px-3 rounded-xl border text-xs font-bold text-center transition">
-                        Полная смена (1.0)
-                    </button>
-                    <button type="button" onclick="selectShiftWeight(0.5)" id="weight-btn-05" class="py-2.5 px-3 rounded-xl border text-xs font-bold text-center transition">
-                        Полдня / подмена (0.5)
-                    </button>
-                </div>
+            <!-- Selected Workers Individual Duration Controls -->
+            <div id="modal-selected-workers" class="space-y-2">
+                <!-- Injected by JS -->
             </div>
 
             <!-- Optional Short Comment -->
             <div class="space-y-1.5">
-                <label class="block text-xs font-semibold text-[var(--text-hint)]">Заметка (необязательно)</label>
-                <input type="text" id="modal-note-input" placeholder="Например: подмена 4ч, приемка..." class="w-full px-3.5 py-2.5 rounded-xl bg-black/5 dark:bg-white/10 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#cb11ab]">
+                <label class="block text-xs font-semibold text-[var(--text-hint)]">Заметка к дню (необязательно)</label>
+                <input type="text" id="modal-note-input" placeholder="Например: приемка товара, инвентаризация..." class="w-full px-3.5 py-2.5 rounded-xl bg-black/5 dark:bg-white/10 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#cb11ab]">
             </div>
 
             <!-- Action Buttons -->
             <div class="flex gap-2 pt-1">
                 <button id="modal-clear-btn" onclick="clearDayShift()" class="px-4 py-3 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 text-xs font-bold btn-tap">
-                    Очистить день
+                    Очистить весь день
                 </button>
                 <button onclick="saveDayShift()" class="flex-1 py-3 rounded-xl bg-[#cb11ab] text-white text-xs font-bold btn-tap">
                     Сохранить
@@ -396,15 +396,21 @@
             const y = TODAY.getFullYear();
             const m = TODAY.getMonth();
             const daysCount = new Date(y, m + 1, 0).getDate();
-            const rotation = ['ilya', 'anna', 'dmitry'];
+            const pairs = [
+                ['ilya', 'anna'],
+                ['anna', 'dmitry'],
+                ['ilya', 'dmitry']
+            ];
             const shiftsMap = {};
 
             for (let d = 1; d <= Math.min(daysCount, TODAY.getDate() + 3); d++) {
                 const iso = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                const empId = rotation[(d - 1) % rotation.length];
+                const [firstId, secondId] = pairs[(d - 1) % pairs.length];
                 shiftsMap[iso] = {
-                    staffId: empId,
-                    weight: 1,
+                    workers: [
+                        { empId: firstId, val: 1 },
+                        { empId: secondId, val: 1 }
+                    ],
                     note: ''
                 };
             }
@@ -412,12 +418,65 @@
             if (TODAY.getDate() > 2) {
                 const subDate = new Date(y, m, TODAY.getDate() - 2);
                 shiftsMap[toISO(subDate)] = {
-                    staffId: 'bogdan',
-                    weight: 0.5,
+                    workers: [
+                        { empId: 'ilya', val: 1 },
+                        { empId: 'bogdan', val: 0.5 }
+                    ],
                     note: 'Подмена 4ч'
                 };
             }
             return shiftsMap;
+        }
+
+        // Backward-compatible normalizer: supports legacy single-worker objects, arrays, and { workers, note }
+        function normalizeDayEntry(rawEntry) {
+            if (!rawEntry) return null;
+
+            let workers = [];
+            let note = '';
+
+            if (Array.isArray(rawEntry)) {
+                workers = rawEntry;
+            } else if (typeof rawEntry === 'object') {
+                note = typeof rawEntry.note === 'string' ? rawEntry.note : '';
+                if (Array.isArray(rawEntry.workers)) {
+                    workers = rawEntry.workers;
+                } else if (rawEntry.empId || rawEntry.staffId) {
+                    // Legacy single-employee format
+                    workers = [{
+                        empId: rawEntry.empId || rawEntry.staffId,
+                        val: Number(rawEntry.val ?? rawEntry.weight) === 0.5 ? 0.5 : 1
+                    }];
+                }
+            }
+
+            const cleanedWorkers = [];
+            const seenIds = new Set();
+            for (const w of workers) {
+                const id = w?.empId || w?.staffId;
+                if (!id || seenIds.has(id)) continue;
+                seenIds.add(id);
+                cleanedWorkers.push({
+                    empId: id,
+                    val: Number(w.val ?? w.weight) === 0.5 ? 0.5 : 1
+                });
+                if (cleanedWorkers.length >= 2) break;
+            }
+
+            if (cleanedWorkers.length === 0 && !note) return null;
+            return { workers: cleanedWorkers, note };
+        }
+
+        function normalizeAllShifts(rawShifts) {
+            const normalized = {};
+            if (!rawShifts || typeof rawShifts !== 'object') return normalized;
+            for (const [iso, val] of Object.entries(rawShifts)) {
+                const norm = normalizeDayEntry(val);
+                if (norm && norm.workers.length > 0) {
+                    normalized[iso] = norm;
+                }
+            }
+            return normalized;
         }
 
         function loadLocalCache() {
@@ -426,7 +485,10 @@
                 if (raw) {
                     const parsed = JSON.parse(raw);
                     if (Array.isArray(parsed.staff) && parsed.staff.length > 0 && parsed.shifts) {
-                        return parsed;
+                        return {
+                            staff: parsed.staff,
+                            shifts: normalizeAllShifts(parsed.shifts)
+                        };
                     }
                 }
             } catch (e) {}
@@ -500,7 +562,7 @@
                         state.staff = data.staff;
                     }
                     if (data.shifts && typeof data.shifts === 'object') {
-                        state.shifts = data.shifts;
+                        state.shifts = normalizeAllShifts(data.shifts);
                     }
                     saveLocalCache();
                 } else {
@@ -636,7 +698,7 @@
         }
 
         function getStaffById(id) {
-            return state.staff.find(s => s.id === id) || state.staff[0];
+            return state.staff.find(s => s.id === id) || null;
         }
 
         function formatHumanDay(iso) {
@@ -692,31 +754,48 @@
                 const weekdayShort = dt.toLocaleDateString('ru-RU', { weekday: 'short' });
                 const isWeekend = dt.getDay() === 0 || dt.getDay() === 6;
                 const isToday = iso === TODAY_ISO;
-                const entry = state.shifts[iso];
+                const dayData = normalizeDayEntry(state.shifts[iso]);
+                const validWorkers = (dayData?.workers || [])
+                    .map(w => ({ ...w, person: getStaffById(w.empId) }))
+                    .filter(w => w.person !== null);
 
-                let rightSide = `<span class="text-xs text-[var(--text-hint)]">Свободно</span>`;
-                if (entry && entry.staffId) {
-                    const person = getStaffById(entry.staffId);
-                    if (person) {
-                        const theme = getThemeForStaff(person);
-                        const weightTag = entry.weight === 0.5 ? `<span class="ml-1 opacity-80">• 0.5</span>` : '';
-                        const noteTag = entry.note ? `<span class="text-[11px] text-[var(--text-hint)] truncate max-w-[110px]">${entry.note}</span>` : '';
-                        rightSide = `
-                            <div class="flex items-center gap-2 min-w-0">
-                                ${noteTag}
-                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl border text-xs font-bold shrink-0 ${theme.pill}">
-                                    <span class="w-2 h-2 rounded-full ${theme.dot}"></span>
-                                    ${person.name}${weightTag}
-                                </span>
-                            </div>
+                let rightSide = `<span class="text-xs text-[var(--text-hint)]">Не назначено</span>`;
+                if (validWorkers.length > 0) {
+                    const countBadgeClass = validWorkers.length === 2
+                        ? 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-300'
+                        : 'bg-amber-500/12 text-amber-700 dark:text-amber-300';
+
+                    const badgesHtml = validWorkers.map(w => {
+                        const theme = getThemeForStaff(w.person);
+                        const weightTag = w.val === 0.5 ? `<span class="opacity-80">• 0.5</span>` : '';
+                        return `
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[11px] font-bold ${theme.pill}">
+                                <span class="w-1.5 h-1.5 rounded-full ${theme.dot} shrink-0"></span>
+                                <span class="truncate max-w-[76px]">${w.person.name}</span>
+                                ${weightTag}
+                            </span>
                         `;
-                    }
+                    }).join('');
+
+                    const noteLine = dayData.note
+                        ? `<div class="text-[10px] text-[var(--text-hint)] truncate max-w-[190px] text-right">${dayData.note}</div>`
+                        : '';
+
+                    rightSide = `
+                        <div class="flex flex-col items-end gap-1 min-w-0">
+                            <div class="flex items-center justify-end flex-wrap gap-1">
+                                ${badgesHtml}
+                                <span class="px-1.5 py-0.5 rounded-md text-[10px] font-extrabold shrink-0 ${countBadgeClass}">${validWorkers.length}/2</span>
+                            </div>
+                            ${noteLine}
+                        </div>
+                    `;
                 }
 
                 html += `
                     <button onclick="openDayEditor('${iso}')" class="w-full card px-3.5 py-2.5 flex items-center justify-between gap-2 text-left btn-tap ${isToday ? 'ring-2 ring-[#cb11ab]' : ''}">
-                        <div class="flex items-center gap-2.5 shrink-0">
-                            <span class="w-6 text-sm font-extrabold ${isToday ? 'text-[#cb11ab]' : ''}">${d}</span>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <span class="w-5 text-sm font-extrabold ${isToday ? 'text-[#cb11ab]' : ''}">${d}</span>
                             <span class="text-xs font-medium uppercase ${isWeekend ? 'text-rose-500' : 'text-[var(--text-hint)]'}">${weekdayShort}</span>
                             ${isToday ? '<span class="px-1.5 py-0.5 rounded bg-[#cb11ab]/10 text-[#cb11ab] text-[10px] font-bold">Сегодня</span>' : ''}
                         </div>
@@ -729,74 +808,158 @@
         }
 
         // ==========================================
-        // 7. DAY EDITOR BOTTOM SHEET
+        // 7. DAY EDITOR BOTTOM SHEET (UP TO 2 WORKERS)
         // ==========================================
         let editingISO = TODAY_ISO;
-        let draftStaffId = 'ilya';
-        let draftWeight = 1;
+        let draftWorkers = [];
 
         window.openDayEditor = function(iso) {
             haptic('light');
             editingISO = iso;
-            const existing = state.shifts[iso];
+            const existing = normalizeDayEntry(state.shifts[iso]);
 
-            const fallbackId = state.staff[0]?.id || 'ilya';
-            draftStaffId = (existing && state.staff.some(s => s.id === existing.staffId)) ? existing.staffId : fallbackId;
-            draftWeight = existing?.weight || 1;
+            draftWorkers = existing
+                ? existing.workers
+                    .filter(w => state.staff.some(s => s.id === w.empId))
+                    .map(w => ({ empId: w.empId, val: w.val === 0.5 ? 0.5 : 1 }))
+                : [];
 
             document.getElementById('modal-day-title').textContent = formatHumanDay(iso);
             document.getElementById('modal-note-input').value = existing?.note || '';
-            document.getElementById('modal-clear-btn').classList.toggle('hidden', !existing);
+            document.getElementById('modal-clear-btn').classList.toggle('hidden', !existing || draftWorkers.length === 0);
 
-            renderModalStaffButtons();
-            window.selectShiftWeight(draftWeight);
+            renderDayModalUI();
             document.getElementById('day-modal').classList.remove('hidden');
         };
 
-        function renderModalStaffButtons() {
+        function renderDayModalUI() {
+            const counterEl = document.getElementById('modal-slot-counter');
+            counterEl.textContent = `${draftWorkers.length} / 2`;
+            counterEl.className = draftWorkers.length === 2
+                ? 'px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold'
+                : 'px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-[11px] font-bold text-[var(--text-hint)]';
+
+            // Employee toggle grid
             document.getElementById('modal-staff-grid').innerHTML = state.staff.map(person => {
-                const selected = person.id === draftStaffId;
+                const idx = draftWorkers.findIndex(w => w.empId === person.id);
+                const selected = idx !== -1;
                 const theme = getThemeForStaff(person);
                 return `
-                    <button type="button" onclick="selectModalStaff('${person.id}')" class="p-3 rounded-2xl border text-left flex items-center gap-2.5 transition btn-tap ${selected ? 'border-[#cb11ab] bg-[#cb11ab]/10' : 'border-[var(--border-subtle)] bg-black/[0.02] dark:bg-white/[0.03]'}">
-                        <span class="w-3 h-3 rounded-full ${theme.dot} shrink-0"></span>
-                        <div class="min-w-0">
-                            <div class="text-xs font-bold truncate">${person.name}</div>
-                            <div class="text-[10px] text-[var(--text-hint)]">${person.role}</div>
+                    <button type="button" onclick="toggleModalStaff('${person.id}')" class="p-3 rounded-2xl border text-left flex items-center justify-between gap-2 transition btn-tap ${selected ? 'border-[#cb11ab] bg-[#cb11ab]/10' : 'border-[var(--border-subtle)] bg-black/[0.02] dark:bg-white/[0.03]'}">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <span class="w-3 h-3 rounded-full ${theme.dot} shrink-0"></span>
+                            <div class="min-w-0">
+                                <div class="text-xs font-bold truncate">${person.name}</div>
+                                <div class="text-[10px] text-[var(--text-hint)]">${person.role}</div>
+                            </div>
                         </div>
+                        ${selected ? `<span class="w-5 h-5 rounded-full bg-[#cb11ab] text-white text-[10px] font-extrabold flex items-center justify-center shrink-0">${idx + 1}</span>` : ''}
                     </button>
                 `;
             }).join('');
+
+            // Individual shift duration & removal controls for selected workers
+            const selectedContainer = document.getElementById('modal-selected-workers');
+            if (draftWorkers.length === 0) {
+                selectedContainer.innerHTML = `
+                    <div class="p-3 rounded-2xl bg-black/[0.03] dark:bg-white/[0.04] text-center text-xs text-[var(--text-hint)]">
+                        Нажмите на 1 или 2 сотрудников выше, чтобы назначить смену
+                    </div>
+                `;
+                return;
+            }
+
+            selectedContainer.innerHTML = `
+                <div class="space-y-2">
+                    <div class="text-xs font-semibold text-[var(--text-hint)]">Назначенные на смену (${draftWorkers.length} из 2):</div>
+                    ${draftWorkers.map((w, idx) => {
+                        const person = getStaffById(w.empId);
+                        if (!person) return '';
+                        const theme = getThemeForStaff(person);
+                        const btnActive = 'px-2.5 py-1.5 rounded-lg bg-[#cb11ab] text-white text-[11px] font-bold transition';
+                        const btnIdle = 'px-2.5 py-1.5 rounded-lg bg-black/5 dark:bg-white/10 text-[var(--text-hint)] text-[11px] font-semibold transition';
+
+                        return `
+                            <div class="p-2.5 rounded-2xl border border-[var(--border-subtle)] bg-black/[0.02] dark:bg-white/[0.03] flex items-center justify-between gap-2">
+                                <div class="flex items-center gap-2 min-w-0">
+                                    <span class="w-2.5 h-2.5 rounded-full ${theme.dot} shrink-0"></span>
+                                    <span class="text-xs font-bold truncate">${person.name}</span>
+                                </div>
+                                <div class="flex items-center gap-1.5 shrink-0">
+                                    <button type="button" onclick="setDraftWorkerVal(${idx}, 1)" class="${w.val === 1 ? btnActive : btnIdle}">1</button>
+                                    <button type="button" onclick="setDraftWorkerVal(${idx}, 0.5)" class="${w.val === 0.5 ? btnActive : btnIdle}">0.5</button>
+                                    <button type="button" onclick="removeDraftWorker(${idx})" class="ml-0.5 px-2 py-1.5 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[11px] font-bold btn-tap" title="Убрать">
+                                        Убрать
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
         }
 
-        window.selectModalStaff = function(id) {
+        window.toggleModalStaff = function(empId) {
+            const existingIdx = draftWorkers.findIndex(w => w.empId === empId);
+            if (existingIdx !== -1) {
+                haptic('light');
+                draftWorkers.splice(existingIdx, 1);
+                renderDayModalUI();
+                return;
+            }
+
+            if (draftWorkers.length >= 2) {
+                haptic('warning');
+                showToast('Максимум 2 сотрудника на смену');
+                return;
+            }
+
             haptic('light');
-            draftStaffId = id;
-            renderModalStaffButtons();
+            draftWorkers.push({ empId, val: 1 });
+            renderDayModalUI();
         };
 
-        window.selectShiftWeight = function(w) {
-            draftWeight = w;
-            const activeStyle = 'py-2.5 px-3 rounded-xl border border-[#cb11ab] bg-[#cb11ab]/10 text-[#cb11ab] text-xs font-bold text-center transition';
-            const normalStyle = 'py-2.5 px-3 rounded-xl border border-[var(--border-subtle)] text-[var(--text-hint)] text-xs font-semibold text-center transition';
+        window.setDraftWorkerVal = function(idx, val) {
+            if (!draftWorkers[idx]) return;
+            haptic('light');
+            draftWorkers[idx].val = val;
+            renderDayModalUI();
+        };
 
-            document.getElementById('weight-btn-1').className = w === 1 ? activeStyle : normalStyle;
-            document.getElementById('weight-btn-05').className = w === 0.5 ? activeStyle : normalStyle;
+        window.removeDraftWorker = function(idx) {
+            haptic('light');
+            draftWorkers.splice(idx, 1);
+            renderDayModalUI();
         };
 
         window.saveDayShift = function() {
             const note = document.getElementById('modal-note-input').value.trim();
+
+            if (draftWorkers.length === 0) {
+                delete state.shifts[editingISO];
+                window.closeModal('day-modal');
+                renderApp();
+                persistChanges();
+                haptic('warning');
+                showToast('День очищен');
+                return;
+            }
+
             state.shifts[editingISO] = {
-                staffId: draftStaffId,
-                weight: draftWeight,
+                workers: draftWorkers.map(w => ({ empId: w.empId, val: w.val })),
                 note: note
             };
+
+            const names = draftWorkers
+                .map(w => getStaffById(w.empId)?.name)
+                .filter(Boolean)
+                .join(' + ');
 
             window.closeModal('day-modal');
             renderApp();
             persistChanges();
             haptic('success');
-            showToast(`Сохранено: ${getStaffById(draftStaffId).name}`);
+            showToast(`Сохранено: ${names}`);
         };
 
         window.clearDayShift = function() {
@@ -870,23 +1033,25 @@
             const sortedDates = Object.keys(state.shifts).sort();
             for (const iso of sortedDates) {
                 if (iso >= startISO && iso <= endISO) {
-                    const entry = state.shifts[iso];
-                    if (!entry || !entry.staffId) continue;
+                    const dayData = normalizeDayEntry(state.shifts[iso]);
+                    if (!dayData || dayData.workers.length === 0) continue;
 
-                    const row = stats.find(s => s.person.id === entry.staffId);
-                    if (row) {
-                        const w = Number(entry.weight) || 1;
-                        row.totalShifts += w;
-                        if (w === 0.5) {
-                            row.halfCount += 1;
-                        } else {
-                            row.fullCount += 1;
+                    for (const worker of dayData.workers) {
+                        const row = stats.find(s => s.person.id === worker.empId);
+                        if (row) {
+                            const w = Number(worker.val) || 1;
+                            row.totalShifts += w;
+                            if (w === 0.5) {
+                                row.halfCount += 1;
+                            } else {
+                                row.fullCount += 1;
+                            }
+
+                            let label = formatShortDate(iso);
+                            if (w === 0.5) label += ' (0.5)';
+                            if (dayData.note) label += ` [${dayData.note}]`;
+                            row.dates.push(label);
                         }
-
-                        let label = formatShortDate(iso);
-                        if (w === 0.5) label += ' (0.5)';
-                        if (entry.note) label += ` [${entry.note}]`;
-                        row.dates.push(label);
                     }
                 }
             }
